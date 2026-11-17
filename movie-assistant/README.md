@@ -1,193 +1,166 @@
-# 🎬 CineMind AI - Movie Recommender Chatbot
+# 🎬 Movie Assistant
 
-A live, text-based Movie Recommender Chatbot built for a college AI lab project. Powered by FastAPI and the official TMDB (The Movie Database) live API with intelligent response caching, rate-limiting safeguards, rule-based intent parsing, and a vanilla HTML/CSS/JS frontend.
-
----
-
-## 🏗️ Architecture
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                   Browser (Vanilla HTML/CSS/JS)             │
-│            • Live Status   • Chat Feed   • Poster Cards     │
-└──────────────────────────────┬──────────────────────────────┘
-                               │  POST /api/chat
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      FastAPI Backend                        │
-│                 (api/main.py, api/routes.py)                │
-└──────────────────────────────┬──────────────────────────────┘
-                               │  reply(message)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    MovieAssistant Orchestrator              │
-│                         (src/chatbot.py)                    │
-└──────────────┬──────────────────────────────┬───────────────┘
-               │                              │
-               ▼                              ▼
-    ┌──────────────────────┐      ┌─────────────────────────┐
-    │     IntentParser     │      │     MovieRecommender    │
-    │ (src/intent_parser)  │      │   (src/recommender.py)  │
-    └──────────────────────┘      └───────────┬─────────────┘
-                                              │
-                                              ▼
-                                  ┌─────────────────────────┐
-                                  │       TMDBClient        │
-                                  │  • In-Memory 1-Hour TTL │
-                                  │  • 429 Retry Backoff    │
-                                  │  • Request Guard & Warn │
-                                  └───────────┬─────────────┘
-                                              │  Bearer Auth
-                                              ▼
-                                 ┌──────────────────────────┐
-                                 │   TMDB Live REST API v3  │
-                                 │ (api.themoviedb.org/3)   │
-                                 └──────────────────────────┘
-```
+**A lightweight, text‑based movie recommendation chatbot** built with **FastAPI** and **vanilla JavaScript**. It talks to **TMDB** in real‑time, caches results, respects rate limits, and even offers an interactive filter drawer for genre, language, era, and rating.
 
 ---
 
-## 🔑 How to Get a Free TMDB API Key
-
-1. **Sign Up**: Go to [https://www.themoviedb.org/signup](https://www.themoviedb.org/signup) and create a free account.
-2. **Verify Email**: Check your inbox and click the verification link sent by TMDB.
-3. **Navigate to API Settings**: Log in and visit [https://www.themoviedb.org/settings/api](https://www.themoviedb.org/settings/api).
-4. **Request an API Key**:
-   - Click **Create** or **Request an API Key**.
-   - Select **Developer** (free for educational / personal projects).
-   - Accept the terms of service.
-   - Fill in simple details (Application Name: e.g., "College AI Movie Recommender", Application URL: `http://localhost:8000`, Summary: "College AI Lab Project").
-5. **Copy Your Key**:
-   - Once approved (instantly), copy your **API Key (v3 auth)** (a 32-character hex string) or your **API Read Access Token (v4 auth)**. Either one is supported!
-6. **Save to `.env`**:
-   - In the project directory, open `.env` and paste your key:
-     ```bash
-     TMDB_API_KEY=your_copied_key_here
-     ```
+## Table of Contents
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Setup & Installation](#setup--installation)
+- [Running the App](#running-the-app)
+- [API Reference](#api-reference)
+- [Frontend Usage](#frontend-usage)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## 🚀 Setup & Installation
-
-### 1. Prerequisites
-- Python 3.10+ installed
-
-### 2. Clone or Enter Project Directory
-```bash
-cd movie-assistant
-```
-
-### 3. Create Environment File
-Copy `.env.example` to `.env`:
-```bash
-# Windows PowerShell:
-Copy-Item .env.example .env
-
-# Linux / macOS:
-cp .env.example .env
-```
-Edit `.env` and insert your TMDB API key:
-```ini
-TMDB_API_KEY=your_key_here
-```
-*(Note: If you start without a key, the server runs in graceful degraded mode with clear setup instructions.)*
-
-### 4. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 5. Run the Server
-```bash
-python run.py
-```
-The server will start at:
-- **Chatbot Web Interface**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- **Interactive Swagger API Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **Alternative ReDoc Docs**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+## Features
+- **Live TMDB data** – No static dataset, always fresh recommendations.
+- **Intelligent intent parsing** – Understands requests like:
+  - "movies like *Inception*"
+  - "recommend a comedy"
+  - "top rated movies"
+  - "recommend based on *Interstellar, Avatar*"
+- **Filtering UI** – Choose genre, language, era, or minimum rating via a side‑drawer; the backend builds the appropriate TMDB *discover* query.
+- **In‑memory caching** – 1‑hour TTL, reduces API calls and respects TMDB free‑tier limits.
+- **Rate‑limit handling** – Automatic retry with exponential back‑off for HTTP 429 responses.
+- **Health & metrics endpoints** – Quick monitoring of TMDB key status and cache usage.
+- **Docker‑ready** – Simple `Dockerfile` can be added later (not included here).
 
 ---
 
-## 💬 Sample Queries
-
-| Query Type | Example Prompt | Description |
-| :--- | :--- | :--- |
-| **Similar by Title** | `movies like Inception` | Searches TMDB for "Inception", queries `/movie/{id}/recommendations`, falls back to `/similar` |
-| **Genre Discovery** | `recommend a comedy` | Maps "comedy" to Genre ID 35, queries `/discover/movie` sorted by rating |
-| **Language Discovery** | `recommend a Korean movie` / `top Hindi movies` | Uses TMDB's `with_original_language` parameter (Korean, Hindi, Japanese, Spanish, French, etc.) |
-| **Multi-Filter Chat** | `comedy movies from the 90s` / `Korean movies rated 8+` | Combines language, genre, minimum rating, and release eras directly from text |
-| **Interactive UI Filters**| Use the top `⚙️ Filters` drawer | Select Genre, Language, Min Rating (★ 7.0–8.5+), Era (2020s, 90s, Classic), and Sort By |
-| **Language + Genre** | `recommend a Spanish comedy` | Discovers movies matching both language code and genre ID |
-| **Top-Rated** | `top rated movies` | Fetches TMDB's all-time highest-rated movies |
-| **Personalized Seeds**| `recommend based on Interstellar, Avatar` | Aggregates and ranks recommendations across up to 3 seed movies |
-| **Follow-Up / More** | `recommend more movies` / `more comedy` | Paginates through TMDB results, excluding already-seen movies |
-| **Greeting & Help** | `hello` / `help` | Welcomes user and explains available commands |
-| **Graceful Fallback**| `asdfgh` | Handles unknown queries with helpful prompt suggestions |
-
----
-
-## 🧠 Design Decisions
-
-### 1. Why Live TMDB API Instead of Static Datasets?
-- **Always Up-to-Date**: Static datasets (like Kaggle or MovieLens 100k) become outdated quickly and do not include new releases, trending films, or accurate current ratings.
-- **Rich Recommendation Graph**: TMDB provides dedicated endpoints (`/movie/{id}/recommendations` and `/movie/{id}/similar`) generated from machine-learning algorithms and community viewing habits.
-- **High-Resolution Media & Posters**: TMDB hosts official movie poster images, release dates, and structured genre tags directly consumable via CDN URLs without local asset storage.
-- **Zero Heavy Downloads**: Eliminates the requirement to download, unpack, or load multi-gigabyte CSV or SQLite datasets into memory.
-
-### 2. How Rate Limits & Caching are Handled
-- **In-Memory Response Cache**: Every TMDB API call is cached in memory (`dict` keyed by endpoint and sorted query parameters) with a **1-hour TTL** (Time To Live). Repeated queries (such as popular titles or genre lists) return instantaneously from cache without consuming rate limits.
-- **429 Exponential Backoff**: If TMDB returns HTTP status `429 (Too Many Requests)`, the client automatically pauses (2s) and retries up to 2 times before failing.
-- **Daily Request Budget Tracking**: The client monitors cumulative requests per calendar day against TMDB's free-tier threshold and logs proactive warnings when exceeding 800 requests.
-
-### 3. Rule-Based Intent Parser (Zero Heavy Dependencies)
-- Avoids large NLP runtimes (spaCy, PyTorch, Transformers) to ensure lightning-fast startup and portability on lab machines.
-- Utilizes regular expressions, canonical genre mapping, seed title splitting, and Python's built-in `difflib` for fuzzy matching against popular titles.
-
----
-
-## 📂 Project Structure
-
-```text
+## Project Structure
+```
 movie-assistant/
 ├── .env.example                 # TMDB_API_KEY=your_key_here
-├── .env                         # Local environment file (API keys)
+├── .gitignore                   # autogenerated (see below)
 ├── src/
 │   ├── __init__.py
-│   ├── tmdb_client.py           # HTTP wrapper + cache + rate-limit guard
-│   ├── recommender.py           # intent → API calls → ranked results
-│   ├── intent_parser.py         # rule-based intent + entity extraction
-│   └── chatbot.py               # MovieAssistant orchestration
+│   ├── tmdb_client.py           # HTTP wrapper + cache + rate‑limit guard
+│   ├── recommender.py           # Core recommendation logic
+│   ├── intent_parser.py         # Rule‑based intent & entity extraction
+│   └── chatbot.py               # Orchestrates intent → recommendation
 ├── api/
 │   ├── __init__.py
-│   ├── main.py                  # FastAPI app & static file mounting
-│   ├── schemas.py               # Pydantic models
-│   └── routes.py                # /api/chat, /api/health, /api/metrics, /api/examples
+│   ├── main.py                  # FastAPI app, env loading, static mount
+│   ├── schemas.py               # Pydantic request/response models
+│   └── routes.py                # /api/chat, /api/health, /api/metrics, …
 ├── templates/
-│   └── index.html               # Semantic HTML UI layout
+│   └── index.html               # Jinja2 entry point (serves the UI)
 ├── static/
-│   ├── css/style.css            # Vanilla CSS styling with cinematic dark theme
-│   └── js/chat.js               # Vanilla JS chat controller & card renderer
+│   ├── css/style.css            # Layout & filter drawer styling
+│   └── js/chat.js               # Front‑end chat & filter logic
 ├── tests/
-│   ├── sanity_tmdb.py           # Layer A verification
-│   ├── sanity_chatbot.py        # Layer B verification
-│   └── sanity_api.py            # Layer C verification
-├── run.py                       # Server runner
-├── requirements.txt             # Pinned project dependencies
-└── README.md                    # Documentation & lab guide
+│   ├── test_filters.py          # Functional tests for filter endpoint
+│   └── verify_e2e.py            # End‑to‑end sanity checks
+├── run.py                       # `python run.py` starts the server
+├── requirements.txt             # Python dependencies
+└── README.md                    # You are reading it!
 ```
 
 ---
 
-## 🧪 Testing Layers
+## Setup & Installation
+1. **Clone the repo** (or copy the folder into your workspace).
+2. **Create a virtual environment** (recommended):
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1  # PowerShell
+   # or `source .venv/bin/activate` on *nix
+   ```
+3. **Install dependencies**:
+   ```powershell
+   pip install -r requirements.txt
+   ```
+4. **Add your TMDB API key**:
+   - Copy `.env.example` to `.env`.
+   - Insert the key you obtain from https://www.themoviedb.org/settings/api.
+   ```
+   TMDB_API_KEY=YOUR_KEY_HERE
+   ```
+5. **(Optional) Run the test suite** to verify everything works:
+   ```powershell
+   pytest -q
+   ```
 
-Run the test suite for each layer:
-```bash
-# Layer A: TMDB Client & Cache
-python tests/sanity_tmdb.py
+---
 
-# Layer B: Intent Parser & Chatbot Orchestrator
-python tests/sanity_chatbot.py
-
-# Layer C: FastAPI Endpoints & Validation
-python tests/sanity_api.py
+## Running the App
+```powershell
+python run.py
 ```
+The server starts on **http://127.0.0.1:8000**.
+- Open that URL in a browser to see the chat UI.
+- The API is also reachable directly, e.g. `GET /api/health`.
+
+---
+
+## API Reference
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/health` | Returns status of TMDB configuration (`ok` or `degraded`). |
+| `GET` | `/api/metrics` | Cache size, API call count, and rate‑limit hint. |
+| `GET` | `/api/examples` | Six curated example prompts for the UI. |
+| `POST` | `/api/chat` | Body: `{ "message": "your query" }` → Returns `ChatResponse` containing a natural‑language reply, a list of recommendation objects, and the detected intent. |
+| `POST` | `/api/recommend_filtered` *(internal)* | Accepts optional `filters` payload (`genre`, `language`, `era`, `min_rating`). Used by the UI filter drawer.
+
+**Pydantic models** (`api/schemas.py`):
+- `ChatRequest` – `message: str`
+- `ChatResponse` – `reply: str`, `recommendations: List[Recommendation]`, `intent: str`
+- `Recommendation` – `title`, `year`, `genres`, `rating`, `poster_url`, `reason`
+- `HealthResponse` – `status`, `tmdb_configured`, `message`
+- `MetricsResponse` – `cache_size`, `api_calls_today`, `rate_limit_remaining`
+
+---
+
+## Frontend Usage
+The UI consists of two panes:
+- **Sidebar** – Shows server health, example queries, and the filter drawer toggle.
+- **Chat pane** – Type natural language requests. The assistant replies with a friendly message and recommendation cards (including poster images). 
+
+### Filtering
+1. Click **Filters** in the sidebar to open the drawer.
+2. Choose any combination of:
+   - **Genre** (e.g., *Comedy*, *Horror*)
+   - **Language** (ISO‑639‑1 codes, e.g., `en`, `ja`)
+   - **Era** (decade, e.g., *1990s*, *2010s*)
+   - **Rating** (minimum TMDB vote average)
+3. Press **Apply** – the chat will automatically ask for a recommendation based on the chosen filters, and the assistant will respond with the top‑rated matches.
+
+---
+
+## Testing
+Two test suites are provided:
+- **Unit / functional tests** – `tests/test_filters.py` validates the filter endpoint with various parameter combos.
+- **End‑to‑end verification** – `tests/verify_e2e.py` runs a quick smoke test that starts the server, performs a few chat queries, and checks response shapes.
+
+Run them with:
+```powershell
+pytest -q
+```
+All tests should pass on a machine with internet access and a valid TMDB key.
+
+---
+
+## Contributing
+Contributions are welcome! Please follow these steps:
+1. Fork the repository.
+2. Create a new branch for your feature or bug‑fix:
+   ```bash
+   git checkout -b feature/your‑feature
+   ```
+3. Make your changes, ensuring the test suite still passes.
+4. Open a Pull Request with a clear description of the change.
+5. Ensure your PR follows the existing code style (PEP 8, type hints where appropriate).
+
+---
+
+## License
+This project is provided under the **MIT License** – feel free to use, modify, and distribute it.
+
+---
+
+*Happy movie hunting!*
