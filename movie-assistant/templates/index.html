@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Movie Recommender AI | College AI Lab Project</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎬</text></svg>" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">🎬</div>
+        <div class="brand-info">
+          <h2>CineMind AI</h2>
+          <span class="tagline">TMDB Live Recommender</span>
+        </div>
+      </div>
+
+      <!-- System Health Card -->
+      <div class="sidebar-section health-section">
+        <h3>System Status</h3>
+        <div id="status-card" class="status-card status-loading">
+          <span class="status-dot"></span>
+          <div class="status-details">
+            <span id="status-text" class="status-title">Checking TMDB...</span>
+            <small id="status-desc" class="status-sub">Connecting to API</small>
+          </div>
+        </div>
+        <div id="api-key-warning" class="api-key-warning hidden">
+          ⚠️ <strong>TMDB Key Missing:</strong> Set <code>TMDB_API_KEY</code> in <code>.env</code> and restart.
+        </div>
+      </div>
+
+      <!-- Example Queries -->
+      <div class="sidebar-section">
+        <h3>Example Prompts</h3>
+        <p class="section-hint">Click any prompt to ask the chatbot:</p>
+        <div id="examples-list" class="examples-list">
+          <button class="example-chip" data-query="movies like Inception">movies like Inception</button>
+          <button class="example-chip" data-query="recommend a comedy">recommend a comedy</button>
+          <button class="example-chip" data-query="recommend a Korean movie">recommend a Korean movie</button>
+          <button class="example-chip" data-query="top Hindi movies">top Hindi movies</button>
+          <button class="example-chip" data-query="top rated movies">top rated movies</button>
+          <button class="example-chip" data-query="movies similar to Interstellar">movies similar to Interstellar</button>
+          <button class="example-chip" data-query="recommend based on The Matrix, Avatar">recommend based on The Matrix, Avatar</button>
+        </div>
+      </div>
+
+      <!-- Live Metrics Card -->
+      <div class="sidebar-section metrics-section">
+        <h3>Live TMDB Metrics</h3>
+        <div class="metrics-grid">
+          <div class="metric-item">
+            <span class="metric-value" id="metric-cache">0</span>
+            <span class="metric-label">Cache Entries</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-value" id="metric-calls">0</span>
+            <span class="metric-label">Calls Today</span>
+          </div>
+        </div>
+        <div class="metric-footer" id="metric-remaining">
+          Limit: Calculating...
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <a href="/docs" target="_blank" class="docs-link">📖 FastAPI Swagger Docs</a>
+      </div>
+    </aside>
+
+    <!-- Main Chat Pane -->
+    <main class="chat-container">
+      <header class="chat-header">
+        <div class="chat-header-title">
+          <div class="agent-avatar">🤖</div>
+          <div>
+            <h1>Movie Assistant</h1>
+            <span class="online-indicator">Active & Ready</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="filter-toggle-btn" class="filter-toggle-btn" title="Toggle Discovery Filters">
+            <span>⚙️ Filters</span>
+            <span id="filter-badge" class="filter-badge hidden">0</span>
+          </button>
+          <button id="clear-btn" class="secondary-btn" title="Clear chat history">Clear Chat</button>
+        </div>
+      </header>
+
+      <!-- Collapsible Filter Drawer -->
+      <section id="filter-drawer" class="filter-drawer">
+        <div class="filter-drawer-header">
+          <span class="filter-drawer-title">🔍 Custom Movie Discovery Filters</span>
+          <span class="filter-drawer-sub">Set criteria to narrow down recommendations</span>
+        </div>
+        <div class="filter-controls-grid">
+          <!-- Genre Filter -->
+          <div class="filter-group">
+            <label for="filter-genre">Genre</label>
+            <select id="filter-genre" class="filter-select">
+              <option value="">All Genres</option>
+              <option value="Action">Action</option>
+              <option value="Adventure">Adventure</option>
+              <option value="Animation">Animation</option>
+              <option value="Comedy">Comedy</option>
+              <option value="Crime">Crime</option>
+              <option value="Documentary">Documentary</option>
+              <option value="Drama">Drama</option>
+              <option value="Family">Family</option>
+              <option value="Fantasy">Fantasy</option>
+              <option value="History">History</option>
+              <option value="Horror">Horror</option>
+              <option value="Music">Music</option>
+              <option value="Mystery">Mystery</option>
+              <option value="Romance">Romance</option>
+              <option value="Science Fiction">Sci-Fi</option>
+              <option value="Thriller">Thriller</option>
+              <option value="War">War</option>
+              <option value="Western">Western</option>
+            </select>
+          </div>
+
+          <!-- Language Filter -->
+          <div class="filter-group">
+            <label for="filter-lang">Language</label>
+            <select id="filter-lang" class="filter-select">
+              <option value="">All Languages</option>
+              <option value="en">English (US/UK)</option>
+              <option value="hi">Hindi (Bollywood)</option>
+              <option value="ko">Korean</option>
+              <option value="ja">Japanese</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="it">Italian</option>
+              <option value="zh">Chinese</option>
+              <option value="ta">Tamil</option>
+              <option value="te">Telugu</option>
+              <option value="ml">Malayalam</option>
+            </select>
+          </div>
+
+          <!-- Rating Filter -->
+          <div class="filter-group">
+            <label for="filter-rating">Min Rating</label>
+            <select id="filter-rating" class="filter-select">
+              <option value="">Any Rating</option>
+              <option value="7.0">★ 7.0 and up</option>
+              <option value="7.5">★ 7.5 and up</option>
+              <option value="8.0">★ 8.0 and up</option>
+              <option value="8.5">★ 8.5 (Masterpieces)</option>
+            </select>
+          </div>
+
+          <!-- Release Era / Year Filter -->
+          <div class="filter-group">
+            <label for="filter-era">Release Era</label>
+            <select id="filter-era" class="filter-select">
+              <option value="">All Time</option>
+              <option value="2020-now">2020s (Modern / New)</option>
+              <option value="2010-2019">2010s</option>
+              <option value="2000-2009">2000s</option>
+              <option value="1990-1999">1990s (90s Golden Era)</option>
+              <option value="pre-1990">Classic (Pre-1990)</option>
+            </select>
+          </div>
+
+          <!-- Sort Filter -->
+          <div class="filter-group">
+            <label for="filter-sort">Sort By</label>
+            <select id="filter-sort" class="filter-select">
+              <option value="vote_average.desc">Highest Rated</option>
+              <option value="popularity.desc">Most Popular</option>
+              <option value="primary_release_date.desc">Newest Release</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-drawer-actions">
+          <button type="button" id="apply-filters-btn" class="apply-filters-btn">✨ Apply & Discover</button>
+          <button type="button" id="reset-filters-btn" class="reset-filters-btn">Reset Filters</button>
+        </div>
+      </section>
+
+      <!-- Active Filter Chips Bar -->
+      <div id="active-filters-bar" class="active-filters-bar hidden">
+        <span class="active-filters-label">Active Filters:</span>
+        <div id="active-chips-container" class="active-chips-container"></div>
+        <button type="button" id="clear-all-filters-btn" class="clear-all-filters-btn">Clear All</button>
+      </div>
+
+      <!-- Message History -->
+      <div id="messages-container" class="messages-container">
+        <!-- Messages will be injected here by JS -->
+      </div>
+
+      <!-- Chat Input Area -->
+      <footer class="chat-input-area">
+        <form id="chat-form" class="chat-form" autocomplete="off">
+          <div class="input-wrapper">
+            <input
+              type="text"
+              id="user-input"
+              class="chat-input"
+              placeholder="Ask for movies by title, genre, or seed (e.g. 'movies like Inception')..."
+              maxlength="500"
+              required
+            />
+            <button type="submit" id="send-btn" class="send-btn" aria-label="Send message">
+              <span>Send</span>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+              </svg>
+            </button>
+          </div>
+        </form>
+      </footer>
+    </main>
+  </div>
+
+  <script src="/static/js/chat.js"></script>
+</body>
+</html>

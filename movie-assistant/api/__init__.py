@@ -1,0 +1,1 @@
+"""Movie Assistant API package."""
